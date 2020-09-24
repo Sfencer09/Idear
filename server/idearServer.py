@@ -8,7 +8,7 @@ import mysql.connector
 import threading
 import os
 
-clientTokens = dict() #keys are the token, value is a tuple of the user ID and time the token expires
+clientTokens = dict() #keys are the tokens, value is a tuple of the user ID and time the token expires
 tokenLock = threading.Lock()
 TOKEN_CLEANUP_INTERVAL = 5*60 #5 minutes
 TOKEN_DURATION = 60*60 #1 hour
@@ -16,20 +16,16 @@ CONFIDENCE_THRESHOLD = 90
 TCP_port = 30500
 UDP_port = 30501
 server_address = "192.168.0.6"
-#database = mysql.connector.connect(host="localhost", user="Idear", passwd="ReeceElliotTrey", database="Idear")
+image_temp_dir = "B:\\" #underlying storage medium should be as fast as possible, I use a RAM disk for testing
+#database = mysql.connector.connect(host="127.0.0.1", user="Idear", passwd="ReeceElliotTrey", database="Idear")
 
 #@jit(target ="CPU") 
 def imageToBlocks(image):
     startTime = time.time()
-    #apply preprocessing
-    convertedImage = image
-    #binarize
-    
     #convert to text using tesseract
     rawData = pytesseract.image_to_data(convertedImage)
     splitData = rawData.splitlines()[1:]
-    #print(rawData)
-    blockNum = 0
+    print(rawData)
     blocks = []
     for block in splitData:
         parts = block.split()
@@ -39,7 +35,6 @@ def imageToBlocks(image):
                 b.append(int(parts[i]))
             b.append(parts[11])
             blocks.append(b)
-        blockNum += 1
     #print(blocks)
     print(time.time()-startTime)
     return blocks
@@ -57,14 +52,30 @@ def joinBlocks(blocks): #converts blocks to finalized text string
         finalString += " " + text
     return finalString
 
+def blocksToString(blocks): #converts blocks to debug string, similar to original raw tesseract output
+    output = ""
+    for block in blocks:
+        
+   
+
 def cleanupTokens():
     for token in clientTokens:
-        if(clientTokens[token][1] >= time.time()):
+        if(clientTokens[token][1] <= time.time()):
             tokenLock.acquire()
             del clientTokens[token]
             tokenLock.release()
 
-
+def validateToken(token):
+    if token in clientTokens:
+        if(clientTokens[token][1] <= time.time():
+            tokenLock.acquire()
+            del clientTokens[token]
+            tokenLock.release()
+            return False
+        else:
+            return True
+    else:
+        return False
 
 class idearTCPHandler(socketserver.StreamRequestHandler):
     def handle(self):
@@ -77,9 +88,9 @@ class idearTCPHandler(socketserver.StreamRequestHandler):
             salt = cursor.callproc("getSalt", [email])[0][0]
             if(salt == ""):
                 self.request.sendall("lf".encode("utf-8"))
+                return
             else:
-                self.request.sendall("ls".encode("utf-8") + salt)
-            
+                self.request.sendall(("ls" + salt).encode("utf-8"))
             #login part 2
             responseType = self.request.recv(1)[0]
             if(responseType != 76): #'L'
@@ -112,10 +123,37 @@ class idearTCPHandler(socketserver.StreamRequestHandler):
             if(salt != ""):
                 self.request.sendall("lf".encode("utf-8"))
             else:
-                self.request.sendall("ls".encode("utf-8") + salt)
-        
-        elif(requestType == 116): #'t', image conversion to text            
-            pass
+                self.request.sendall(("ls" + salt).encode("utf-8"))
+            
+        elif(requestType == 116): #'t', image conversion to text
+            token = self.request.recv(32)
+            if not validateToken(token):
+                #token is invalid, send error code for expired token
+                pass
+            
+            requestNum = struct.unpack("I", self.request.recv(4))[0]
+            ancSize = struct.unpack("H", self.request.recv(2))[0]
+            ancillary = self.request.recv(ancSize).decode("utf-8")
+            imageSize = struct.unpack("I", self.request.recv(4))[0]
+            filename = image_temp_dir + str(token[0]) +'-' + str(requestNum)
+            imageFile = open(filename, "wb+")
+            imageFile.write(self.request.recv(imageSize))
+            imageFile.close()
+            #image written to file, apply preprocessing
+            convertedImage = image
+            #binarize
+            
+            #give image to Tesseract
+            blocks = imageToBlocks(convertedImage)  #This is the expensive line
+            text = joinBlocks(blocks)
+            #send response back to client
+            textBytes = text.encode("utf-8")
+            response = struct.pack("cIHp", 't', requestNum, len(textBytes), textBytes)
+            self.request.sendall(response)
+            #write all to database
+            #addImage(IN UsID int, IN bsImg longblob, IN fnImg longblob, IN ancData text, IN Tsblks text, IN rtnText text)
+            userID = clientTokens[token][0]
+            cursor.callproc("addImage", [userID, image, convertedImage, ancillary, str(blocks), text])
     pass
 
 class idearTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
@@ -127,7 +165,7 @@ class idearUDPHandler(socketserver.DatagramRequestHandler):
     def handle(self):
         requestType = self.request.read(1)
         if(requestType == b't'):
-           #image conversion to text
+            #image conversion to text
             pass
         elif(requestType == b'a'):
             #image conversion to text+audio
@@ -139,7 +177,7 @@ class idearUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
     pass
 
 
-if __name__ == "__main__":
+def test():
     print(joinBlocks(imageToBlocks(r'C:\Servers\Other Servers\idear\test1.png')))
     #Noisy image to test Tesseract OCR
     print(joinBlocks(imageToBlocks(r'C:\Servers\Other Servers\idear\test2.JPG')))
@@ -158,7 +196,7 @@ if __name__ == "__main__":
     #their fear fuels me
 
 
-    
+def main():
     tcpServer = idearTCPServer(("localhost", TCP_port), idearTCPHandler)
     tcpThread = threading.Thread(target=tcpServer.serve_forever())
     tcpThread.run()
@@ -168,6 +206,12 @@ if __name__ == "__main__":
     tokenCleanupTimer = threading.Timer(TOKEN_CLEANUP_INTERVAL, cleanupTokens)
     tokenCleanupTimer.start()
     
-    tcpThread.join()
     #udpThread.join()
-    
+    tcpThread.join()
+
+
+
+
+if __name__ == "__main__":
+    test()
+    main()
