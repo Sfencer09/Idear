@@ -55,8 +55,8 @@ def joinBlocks(blocks): #converts blocks to finalized text string
 def blocksToString(blocks): #converts blocks to debug string, similar to original raw tesseract output
     output = ""
     for block in blocks:
-        
-   
+        output += "%d %d %d %d %d %d %d %d %d %d %s\n" % block
+    return output
 
 def cleanupTokens():
     for token in clientTokens:
@@ -123,7 +123,12 @@ class idearTCPHandler(socketserver.StreamRequestHandler):
             if(salt != ""):
                 self.request.sendall("lf".encode("utf-8"))
             else:
+                salt = os.random(8).hex()
                 self.request.sendall(("ls" + salt).encode("utf-8"))
+            responseType = self.request.recv(1)[0]
+            if(responseType != 76): #'L'
+                #invalid message
+                pass
             
         elif(requestType == 116): #'t', image conversion to text
             token = self.request.recv(32)
