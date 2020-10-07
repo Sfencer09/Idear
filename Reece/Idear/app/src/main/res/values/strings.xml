@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">Idear</string>
+    <string name="settings">Settings</string>
+    <string name="capture">Capture</string>
+    <string name="library_coming_soon">Library (Coming Soon)</string>
+    <string name="cameraview" translatable="false">CameraView</string>
+    <string name="voice_1" translatable="false">Voice 1</string>
+    <string name="voice_options" translatable="false">Voice Options</string>
+    <string name="voice_2" translatable="false">Voice 2</string>
+    <string name="voice_3" translatable="false">Voice 3</string>
+    <string name="colorblind_mode" translatable="false">Colorblind Mode</string>
+    <string name="speed_options">Speed_options</string>
+    <string name="sample_1">"Date\n""Image_Size\n"</string>
+    <string-array name="metadata">
+        <item>"9/16/2020"
+        "16KB"</item>
+    </string-array>
+    <string-array name="images">
+        <item>"img1"</item>
+    </string-array>
+</resources>
