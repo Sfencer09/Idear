@@ -1,58 +1,38 @@
 package com.example.idear;
 
 import android.Manifest;
-import android.content.Context;
-import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
-import android.hardware.camera2.CameraManager;
-import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
-import android.os.Handler;
 import android.os.HandlerThread;
-import android.provider.MediaStore;
-import android.util.Size;
-import android.util.SparseIntArray;
-import android.view.Surface;
-import android.view.TextureView;
-import android.view.View;
-import android.widget.Button;
-import android.widget.Toast;
 import android.util.Log;
-import android.graphics.Bitmap;
-
+import android.util.SparseIntArray;
+import android.widget.Toast;
+import android.os.Handler;
+import android.util.Size;
+import android.content.Context;
+import android.hardware.camera2.CaptureRequest;
+import android.view.Surface;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
-
-import java.io.File;
-import java.text.SimpleDateFormat;
+import android.view.TextureView;
+import android.hardware.camera2.CameraManager;
+import android.os.Build;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
-
-    private Button capture;
-    private Button settings;
-    private Button library;
-
+public class ImagePreview extends AppCompatActivity {
     private TextureView mHolder;
     private static final int REQUEST_CAMERA_PERMISSION_CODE = 0;
-
-    private File mPhotoFolder;
-    private String photoID;
-    private String photoDate;
 
     private TextureView.SurfaceTextureListener mTextureListener = new TextureView.SurfaceTextureListener() {
         @Override
@@ -125,43 +105,6 @@ public class MainActivity extends AppCompatActivity {
         Log.d("CREATE", "Image Preview is running.");
 
         mHolder = (TextureView) findViewById(R.id.textureView);
-
-        capture = (Button) findViewById(R.id.CaptureBtn);
-        settings = (Button) findViewById(R.id.SettingBtn);
-        library = (Button) findViewById(R.id.LibraryBtn);
-
-        capture.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-                startActivityForResult(intent,0);
-                Toast.makeText(MainActivity.this, "Click, Sending Picture", Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        library.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Log.i("MyApp1","1");
-                Intent load= new Intent(MainActivity.this, Library.class);
-                Log.i("MyApp2","2");
-                startActivity(load);
-                Log.i("MyApp3","3");
-
-            }
-        });
-
-        settings.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Log.i("MyApp1","1");
-                Intent load= new Intent(MainActivity.this, SettingsAct.class);
-                Log.i("MyApp2","2");
-                startActivity(load);
-                Log.i("MyApp3","3");
-
-            }
-        });
     }
 
     private void cameraSetup(int width, int height){
@@ -307,34 +250,9 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         if(correctSize.size() > 0){
-            return Collections.min(correctSize, new MainActivity.compareSize());
+            return Collections.min(correctSize, new compareSize());
         } else {
             return choices[0];
-        }
-    }
-
-    String currentPhotoPath;
-
-    private File createImageFile(){
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String imageFileName = "JPEG_" + timeStamp + "_";
-        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        try {
-            File imageFile = File.createTempFile(imageFileName, ".png", storageDir);
-            currentPhotoPath = imageFile.getAbsolutePath();
-            return imageFile;
-        } catch (java.io.IOException e){
-            Toast.makeText(getApplicationContext(), "There was an error saving the image. Please try again later.", Toast.LENGTH_SHORT).show();
-            return null;
-        }
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data){
-        if(requestCode == 0 && resultCode == RESULT_OK ) {
-            super.onActivityResult(requestCode, resultCode, data);
-            Bitmap image = (Bitmap) data.getExtras().get("data");
-            //textureView.setImageBitmap(image);
         }
     }
 }
