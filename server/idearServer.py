@@ -1,6 +1,6 @@
 import pytesseract
-import cv2
-from numba import jit
+#import cv2
+#from numba import jit
 import time
 import socketserver
 import struct
@@ -23,7 +23,7 @@ database = mysql.connector.connect(host="127.0.0.1", user="Idear", passwd="Reece
 def imageToBlocks(image):
     startTime = time.time()
     #convert to text using tesseract
-    rawData = pytesseract.image_to_data(convertedImage)
+    rawData = pytesseract.image_to_data(image)
     splitData = rawData.splitlines()[1:]
     print(rawData)
     blocks = []
