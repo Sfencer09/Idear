@@ -17,7 +17,7 @@ TCP_port = 30500
 UDP_port = 30501
 server_address = "192.168.0.6"
 image_temp_dir = "B:\\" #underlying storage medium should be as fast as possible, I use a RAM disk for testing
-#database = mysql.connector.connect(host="127.0.0.1", user="Idear", passwd="ReeceElliotTrey", database="Idear")
+database = mysql.connector.connect(host="127.0.0.1", user="Idear", passwd="ReeceElliotTrey", database="Idear")
 
 #@jit(target ="CPU") 
 def imageToBlocks(image):
@@ -67,7 +67,7 @@ def cleanupTokens():
 
 def validateToken(token):
     if token in clientTokens:
-        if(clientTokens[token][1] <= time.time():
+        if(clientTokens[token][1] <= time.time()):
             tokenLock.acquire()
             del clientTokens[token]
             tokenLock.release()
@@ -126,9 +126,15 @@ class idearTCPHandler(socketserver.StreamRequestHandler):
                 salt = os.random(8).hex()
                 self.request.sendall(("ls" + salt).encode("utf-8"))
             responseType = self.request.recv(1)[0]
-            if(responseType != 76): #'L'
-                #invalid message
+            if(responseType != 78): #'N'
+                self.request.sendall("EN".encode("utf-8"))
+                return
+            emailLen2 = struct.unpack("H", self.request.recv(2))[0]
+            email2 = self.request.recv(emailLen2).decode("utf-8")
+            if(email2 != email):
+                #did not receive same email as first message
                 pass
+            passHash = self.request.recv(32)
             
         elif(requestType == 116): #'t', image conversion to text
             token = self.request.recv(32)
