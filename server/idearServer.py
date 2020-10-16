@@ -189,16 +189,16 @@ class idearUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
 
 
 def test():
-    print(joinBlocks(imageToBlocks(r'C:\Servers\Other Servers\idear\test1.png')))
+    print(joinBlocks(imageToBlocks(r'.\test1.png')))
     #Noisy image to test Tesseract OCR
-    print(joinBlocks(imageToBlocks(r'C:\Servers\Other Servers\idear\test2.JPG')))
+    print(joinBlocks(imageToBlocks(r'.\test2.JPG')))
     #You've heard of elf on a shelf,
     #but have you heard of...
-    print(joinBlocks(imageToBlocks(r'C:\Servers\Other Servers\idear\test3.JPG')))
+    print(joinBlocks(imageToBlocks(r'.\test3.JPG')))
     #(215): He said he loved me more than Kel loves orange soda.
     #(610): the result of growing up in the '90's.
     #texts from last night
-    print(joinBlocks(imageToBlocks(r'C:\Servers\Other Servers\idear\test4.JPG')))
+    print(joinBlocks(imageToBlocks(r'.\test4.JPG')))
     #firelorcl:
     #i scare people lots because i walk
     #very softly and they don't hear me
