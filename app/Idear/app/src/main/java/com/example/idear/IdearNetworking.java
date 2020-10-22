@@ -25,7 +25,7 @@ import androidx.annotation.NonNull;
 
 public final class IdearNetworking {
     private static final InetAddress serverAddr;
-    private static final int tcpPort = 30500;
+    private static final int tcpPort = 30501;
     private static final int udpPort = 30501;
     public static final boolean userlessLoginEnabled = true;
 
@@ -49,6 +49,8 @@ public final class IdearNetworking {
     private final MessageDigest md;
 
     private boolean loggedIn;
+    private final byte[] loginToken;
+    private int requestNum;
 
     /**
      * Class to represent a single response from the Idear server.
@@ -173,6 +175,7 @@ public final class IdearNetworking {
         this.tcpSocket = SSLSocketFactory.getDefault().createSocket(serverAddr, tcpPort);
         tcpSocket.setKeepAlive(true);
         tcpLock = new Semaphore(1);
+        loginToken = new byte[32];
         this.udpSocket = new DatagramSocket();
         udpSocket.connect(serverAddr, udpPort);
         try {
@@ -181,6 +184,7 @@ public final class IdearNetworking {
             throw new RuntimeException(e);
         }
         loggedIn = false;
+        requestNum = 0;
         udpHandler = null;
         this.udpListenerThread = null;
     }
@@ -282,6 +286,7 @@ public final class IdearNetworking {
                 return 20;
             }
             response = dis.readUnsignedByte();
+
             if (response == 'f') {
                 //password was incorrect
                 tcpLock.release();
@@ -291,6 +296,7 @@ public final class IdearNetworking {
                 tcpLock.release();
                 return 20;
             }
+            dis.readFully(loginToken);
             tcpLock.release();
             loggedIn = true;
             return 0;
@@ -389,6 +395,7 @@ public final class IdearNetworking {
                 tcpLock.release();
                 return 20;
             }
+            dis.readFully(loginToken);
             tcpLock.release();
             loggedIn = true;
             return 0;
@@ -435,7 +442,7 @@ public final class IdearNetworking {
     }
 
     /**
-     * Sends a new image to the server for processing using TCP. This method is guaranteed to
+     * Sends a new image to the server for processing using TCP. This method is mostly guaranteed to
      * get a response from the server, but will likely be slower than UDP.
      *
      * @param image         the image to be processed
@@ -444,25 +451,72 @@ public final class IdearNetworking {
      * @param ancillaryData string containing any gyro, accelerometer, or other sensor data to aid
      *                      in the processing of the image. May be null or an empty string.
      * @return an IdearResponse instance containing the text and, if requestAudio was set to true,
-     * audio returned by the Idear server
+     * audio returned by the Idear server, or null if an error occurred
      * @throws IllegalStateException if not logged in or if the cleanup() method has been called
      * @throws IOException
      */
     public IdearResponse sendImageTCP(@NonNull Bitmap image, boolean requestAudio, String ancillaryData) throws IOException {
+        if (ancillaryData == null) {
+            ancillaryData = "";
+        }
         if (!loggedIn) {
             throw new IllegalStateException("Must be logged in to send images");
         }
         if (tcpSocket.isClosed() || udpSocket.isClosed()) {
             throw new IllegalStateException("Sockets have been closed, cannot send data");
         }
+        if (ancillaryData.length() >= Short.MAX_VALUE) {
+            throw new IllegalArgumentException("Ancillary data is too large");
+        }
         try {
+            //convert image to PNG
+            ByteArrayOutputStream imageBuffer = new ByteArrayOutputStream();
+            image.compress(Bitmap.CompressFormat.PNG, 0, imageBuffer);
+
             tcpLock.acquire();
 
+            OutputStream tcpOut = tcpSocket.getOutputStream();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            DataOutputStream dos = new DataOutputStream(baos);
+
+            dos.writeByte((byte) (requestAudio?'a':'t'));
+            dos.write(loginToken);
+            dos.writeInt(requestNum++);
+            dos.writeUTF(ancillaryData);
+            dos.writeInt(imageBuffer.size());
+            dos.write(imageBuffer.toByteArray());
+            dos.flush();
+            tcpOut.write(baos.toByteArray());
+            tcpOut.flush();
+
+            InputStream tcpIn = tcpSocket.getInputStream();
+            DataInputStream dis = new DataInputStream(tcpIn);
+            int responseType = dis.readUnsignedByte();
+            if (responseType != (requestAudio?'a':'t')){
+                tcpLock.release();
+                return null;
+            }
+            int responseNum = dis.readInt();
+            if(responseNum != (requestNum-1)){ //have to subtract one since we already incremented requestNum
+                tcpLock.release();
+                return null;
+            }
+            String transcribedText = dis.readUTF();
+            IdearResponse response;
+            if(requestAudio){
+                int audioSize = dis.readInt();
+                byte[] audioBuffer = new byte[audioSize];
+                dis.readFully(audioBuffer);
+                response = new IdearResponse(transcribedText, audioBuffer);
+            } else {
+                response = new IdearResponse(transcribedText);
+            }
+            tcpLock.release();
+            return response;
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        throw new UnsupportedOperationException("Not implemented yet");
-        //return null;
+        return null;
     }
 
     /**
