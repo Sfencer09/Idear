@@ -24,20 +24,31 @@ import javax.net.ssl.SSLSocketFactory;
 import androidx.annotation.NonNull;
 
 public final class IdearNetworking {
-    private static final InetAddress serverAddr;
+    private static InetAddress serverAddr = null;
     private static final int tcpPort = 30501;
     private static final int udpPort = 30501;
     public static final boolean userlessLoginEnabled = true;
 
     static {
-        InetAddress temp = null;
+        Thread dnsThread = new Thread(){
+            @Override
+            public void run() {
+                InetAddress temp = null;
+                try {
+                    temp = InetAddress.getByName("project-treytech.com");
+                } catch (UnknownHostException e) {
+                    e.printStackTrace();
+                    System.exit(1);
+                }
+                IdearNetworking.serverAddr = temp;
+            }
+        };
+        dnsThread.start();
         try {
-            temp = InetAddress.getByName("project-treytech.com");
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
-            System.exit(1);
+            dnsThread.join();
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
         }
-        serverAddr = temp;
     }
 
     private final Socket tcpSocket;
@@ -172,7 +183,7 @@ public final class IdearNetworking {
      * @throws IOException if an IO error occurs while creating sockets
      */
     public IdearNetworking() throws IOException {
-        this.tcpSocket = SSLSocketFactory.getDefault().createSocket(serverAddr, tcpPort);
+        this.tcpSocket = new Socket(serverAddr, tcpPort);
         tcpSocket.setKeepAlive(true);
         tcpLock = new Semaphore(1);
         loginToken = new byte[32];
