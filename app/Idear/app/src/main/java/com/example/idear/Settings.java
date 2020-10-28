@@ -14,6 +14,7 @@ public class Settings {
 
     private double speed;
     private int voiceOption;
+    private String text;
     //private TextToSpeech textToSpeech;
 
     private Settings() {
@@ -24,6 +25,12 @@ public class Settings {
 
     public static Settings getInstance() {
         return instance;
+    }
+    public void setText(String s){
+        text = s;
+    }
+    public String getText(){
+        return text;
     }
     public double getSpeed() {
         return speed;

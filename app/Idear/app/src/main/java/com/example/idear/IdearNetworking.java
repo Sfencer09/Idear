@@ -1,22 +1,35 @@
 package com.example.idear;
 
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Rect;
+import android.media.Image;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
 import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Serializable;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -24,11 +37,11 @@ import javax.net.ssl.SSLSocketFactory;
 
 import androidx.annotation.NonNull;
 
-public final class IdearNetworking {
-    //private static InetAddress serverAddr = null;
+public final class IdearNetworking extends Thread {
+
+    private static IdearNetworking instance;
     private static final int tcpPort = 30501;
     private static final int udpPort = 30501;
-    public static final boolean userlessLoginEnabled = true;
 
     /*static {
         Log.d("CREATE" ,"In the static block.");
@@ -61,9 +74,12 @@ public final class IdearNetworking {
     }
      */
 
-    private final Socket tcpSocket;
+    private Socket tcpSocket;
     private final Semaphore tcpLock;
-    private final DatagramSocket udpSocket;
+    private static Handler tcpThreadHandler;
+    private final Semaphore readyLock;
+
+    private DatagramSocket udpSocket;
     private UDPResponseHandler udpHandler;
     private Thread udpListenerThread;
 
@@ -73,30 +89,60 @@ public final class IdearNetworking {
     private final byte[] loginToken;
     private int requestNum;
 
+    static {
+        //initialize();
+    }
+
+    public static void initialize() throws IOException {
+        Log.d("CREATE", "Starting initialization.");
+        instance = new IdearNetworking();
+        Log.d("CREATE", "Instance created.");
+        instance.start();
+        Log.d("CREATE", "Started.");
+        instance.waitForReady();
+        Log.d("CREATE", "Waited to ready.");
+    }
+
     /**
      * Class to represent a single response from the Idear server.
      */
-    public final class IdearResponse {
+    public static final class IdearResponse implements Serializable {
         private final char responseType;
         private final String imageText;
-        private final Object imageAudio;
-        private final Rect cropDimensions;
+        private final Serializable imageAudio;
+        //private final Rect cropDimensions;
+        private static final long serialVersionUID = 01L;
 
-        private IdearResponse(String text, Object audio) {
+        @Override
+        public String toString() {
+            return "IdearResponse{" +
+                    "responseType=" + responseType +
+                    ", imageText='" + imageText + '\'' +
+                    '}';
+        }
+
+        private IdearResponse() { //used only for deserializing
+            this.responseType = 0;
+            this.imageText = null;
+            this.imageAudio = null;
+            //this.cropDimensions = null;
+        }
+
+        private IdearResponse(String text, Serializable audio) {
             if (text == null) {
                 throw new IllegalArgumentException("Response text cannot be null");
             }
             this.responseType = audio == null ? 't' : 'a';
             this.imageText = text;
             this.imageAudio = audio;
-            this.cropDimensions = null;
+            //this.cropDimensions = null;
         }
 
         private IdearResponse(String text) {
             this(text, null);
         }
 
-        private IdearResponse(Rect cropDim) {
+        /*private IdearResponse(Rect cropDim) {
             if(cropDim == null) {
                 throw new IllegalArgumentException("Crop dimensions cannot be null");
             }
@@ -104,7 +150,7 @@ public final class IdearNetworking {
             this.cropDimensions = cropDim;
             this.imageText = null;
             this.imageAudio = null;
-        }
+        }*/
 
         public char getResponseType() {
             return responseType;
@@ -114,13 +160,14 @@ public final class IdearNetworking {
             return imageText;
         }
 
-        public Object getImageAudio() {
+        public Serializable getImageAudio() {
             return imageAudio;
         }
 
-        public Rect getCropDimensions() {
+        /*public Rect getCropDimensions() {
             return cropDimensions;
-        }
+        }*/
+
     }
 
     /**
@@ -136,6 +183,7 @@ public final class IdearNetworking {
          *     <li>'a' - Transcribed text & audio</li>
          *     <li>'c' - Cropping dimensions</li>
          * </ul>
+         *
          * @param response The IdearResponse class instance constructed from the server's response
          */
         public abstract void handle(IdearResponse response);
@@ -147,7 +195,7 @@ public final class IdearNetworking {
         private final UDPResponseHandler responseHandler;
 
         private UDPListener(UDPResponseHandler handler) {
-            if(handler == null) {
+            if (handler == null) {
                 throw new IllegalArgumentException("Handler cannot be null");
             }
             this.responseHandler = handler;
@@ -156,7 +204,7 @@ public final class IdearNetworking {
         @Override
         public void run() {
 
-            while(true) {
+            while (true) {
 
                 throw new UnsupportedOperationException();
             }
@@ -192,14 +240,16 @@ public final class IdearNetworking {
      *
      * @throws IOException if an IO error occurs while creating sockets
      */
-    public IdearNetworking() throws IOException {
+    private IdearNetworking() throws IOException {
         //Log.d("CREATE", serverAddr.getHostAddress());
-        this.tcpSocket = new Socket("project-treytech.com", tcpPort);
-        tcpSocket.setKeepAlive(true);
         tcpLock = new Semaphore(1);
+        readyLock = new Semaphore(1);
+        try {
+            readyLock.acquire();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         loginToken = new byte[32];
-        this.udpSocket = new DatagramSocket();
-        //udpSocket.connect("project-treytech.com", udpPort);
         try {
             md = MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {
@@ -211,8 +261,78 @@ public final class IdearNetworking {
         this.udpListenerThread = null;
     }
 
-    private boolean loginNoUser() {
-        throw new UnsupportedOperationException("Not implemented yet");
+    @Override
+    public void run() {
+        try {
+            Log.d("CREATE", "Entering try catch.");
+            this.tcpSocket = new Socket("project-treytech.com", tcpPort);
+            Log.d("CREATE", "Socket created.");
+            tcpSocket.setKeepAlive(true);
+            this.udpSocket = new DatagramSocket();
+            Log.d("CREATE", "Set udpSocket.");
+            //udpSocket.connect("project-treytech.com", udpPort);
+        }catch (IOException e){
+
+        }
+        Looper.prepare();
+        Log.d("CREATE", "Looper prepared.");
+        Looper looper = Looper.myLooper();
+        tcpThreadHandler = Handler.createAsync(looper, new Handler.Callback() {
+            @Override
+            public boolean handleMessage(@NonNull Message msg) {
+                Bundle b = msg.getData();
+                String type = b.getString("type");
+                Log.d("CREATE", "HandleMessage received " + type);
+                switch (type) {
+                    case "image":
+                        Log.d("CREATE", "Switch statement entered for image.");
+                        IdearResponse response = sendImageTCP_internal(b.getString("image"), b.getBoolean("audio"), b.getString("ancillary"));
+                        Log.d("CREATE", "Sending TCP...");
+                        Log.d("CREATE", "Got response " + String.valueOf(response));
+                        if (response == null) break;
+                        if (response.getImageText().isEmpty()) break;
+                        Log.d("CREATE" ,"Response received = " + response.imageText);
+                        //send text to TTS handler
+                        Library.instance.readAloud(response.getImageText());
+                        /*Message ttsMsg = new Message();
+                        Bundle imageBundle = new Bundle();
+                        b.putString("type", "response");
+                        b.putSerializable("response", response);
+                        ttsMsg.setAsynchronous(true);
+                        ttsMsg.setData(b);*/
+                        break;
+                    case "login":
+                        int loginStatus = login_internal(b.getString("email"), b.getString("password"));
+                        Message loginMsg = new Message();
+                        Bundle loginBundle = new Bundle();
+                        loginBundle.putString("type", "loginStatus");
+                        loginBundle.putInt("status", loginStatus);
+                        loginMsg.setAsynchronous(true);
+                        loginMsg.setData(loginBundle);
+                        //send message to main thread
+                        break;
+                    case "register":
+                        int registerStatus = createAccount_internal(b.getString("email"), b.getString("password"));
+                        Message registerMsg = new Message();
+                        Bundle registerBundle = new Bundle();
+                        registerBundle.putString("type", "loginStatus");
+                        registerBundle.putInt("status", registerStatus);
+                        registerMsg.setAsynchronous(true);
+                        registerMsg.setData(registerBundle);
+                        //send message to main thread
+                        break;
+                    default:
+                        return false;
+                }
+                return true;
+            }
+        });
+        Log.d("CREATE", "Done attempting to create handler.");
+        if(tcpThreadHandler == null) {
+            Log.d("CREATE", "Unable to create networking thread handler");
+        }
+        readyLock.release();
+        Looper.loop();
     }
 
     /**
@@ -235,26 +355,14 @@ public final class IdearNetworking {
      * @param password
      * @return 0 if successful, or one of the above values if unsuccessful
      */
-    public int login(String email, String password) {
+    private int login_internal(String email, String password) {
         if (loggedIn) {
             throw new IllegalStateException("Already logged in");
         }
-        if (!userlessLoginEnabled) {
-            if (email == null) {
-                throw new IllegalArgumentException("Email cannot be null");
-            } else if (password == null) {
-                throw new IllegalArgumentException("Password cannot be null");
-            }
-        } else {
-            if (email == null) {
-                if (password != null) {
-                    throw new IllegalArgumentException("Both email and password must be null for userless login");
-                }
-                if (loginNoUser()) {
-                    loggedIn = true;
-                    return 0;
-                }
-            }
+        if (email == null) {
+            throw new IllegalArgumentException("Email cannot be null");
+        } else if (password == null) {
+            throw new IllegalArgumentException("Password cannot be null");
         }
         try {
             tcpLock.acquire();
@@ -263,6 +371,9 @@ public final class IdearNetworking {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(baos);
 
+            InputStream tcpIn = tcpSocket.getInputStream();
+            DataInputStream dis = new DataInputStream(tcpIn);
+            Log.d("CREATE", "Starting Login.");
             //send email address
             dos.writeByte((byte) 'l'); //this is stage 1 of logging in
             dos.writeUTF(email); //this also writes the string length as a short
@@ -270,12 +381,15 @@ public final class IdearNetworking {
             tcpOut.write(baos.toByteArray());
             tcpOut.flush();
             baos.reset();
+            Log.d("CREATE", "Ending login.");
 
+            Log.d("CREATE", "Starting password salt.");
             //read password salt
-            InputStream tcpIn = tcpSocket.getInputStream();
-            DataInputStream dis = new DataInputStream(tcpIn);
+
             int responseType = dis.readUnsignedByte();
+            Log.d("CREATE", "Response type ="+responseType);
             if (responseType != 'l') {
+                Log.d("CREATE", "Incorrect response, abort!");
                 //did not receive correct response from server
                 tcpLock.release();
                 return 20;
@@ -283,15 +397,24 @@ public final class IdearNetworking {
             int response = dis.readUnsignedByte();
             if (response == 'f') {
                 //email address not found in database
+                Log.d("CREATE", "No email found, abort!");
                 tcpLock.release();
                 return 1;
             } else if (response != 's') {
                 //bad response from server, aborting
+                Log.d("CREATE", "bad response, abort!");
                 tcpLock.release();
                 return 20;
             }
-            String salt = dis.readUTF();
+            Log.d("CREATE", "Response = " + dis.readUnsignedShort());
+            byte[] b = new byte[16];
+            dis.read(b);
+            String salt = new String(b, Charset.forName("UTF-8"));
+            //String salt = dis.readUTF();
+            //String salt = "";
+            Log.d("CREATE", "ending password salt.");
 
+            Log.d("CREATE", "Starting password hash.");
             //construct password hash and send to server
             dos.write('L');
             dos.writeUTF(email);
@@ -300,14 +423,18 @@ public final class IdearNetworking {
             tcpOut.write(baos.toByteArray());
             tcpOut.flush();
             baos.reset();
+            Log.d("CREATE", "Ending password hash.");
 
+            Log.d("CREATE", "Starting server response.");
             //read response from server
             responseType = dis.readUnsignedByte();
+            Log.d("CREATE", "ResponseType = " + responseType);
             if (responseType != 'L') {
                 tcpLock.release();
                 return 20;
             }
             response = dis.readUnsignedByte();
+            Log.d("CREATE", "Response = " + response);
 
             if (response == 'f') {
                 //password was incorrect
@@ -321,6 +448,7 @@ public final class IdearNetworking {
             dis.readFully(loginToken);
             tcpLock.release();
             loggedIn = true;
+            Log.d("CREATE", "We have successfully logged in. Huzzah!");
             return 0;
         } catch (IOException e) {
             e.printStackTrace();
@@ -352,7 +480,7 @@ public final class IdearNetworking {
      * @param password
      * @return 0 if successful, or one of the above values if unsuccessful
      */
-    public int createAccount(@NonNull String email, @NonNull String password) {
+    private int createAccount_internal(@NonNull String email, @NonNull String password) {
         if (loggedIn) {
             throw new IllegalStateException("Already logged in");
         }
@@ -435,16 +563,11 @@ public final class IdearNetworking {
         }
     }
 
-    private void startUDPListener() {
-
-        throw new UnsupportedOperationException();
-    }
-
     /**
      * Closes all open sockets and cleans up any resources held by this class. Once this method is
      * called this class instance can no longer be used.
      */
-    public void cleanup() {
+    private void cleanup() {
         try {
             boolean lockSuccess = tcpLock.tryAcquire(3, TimeUnit.SECONDS);
             tcpSocket.close();
@@ -457,10 +580,19 @@ public final class IdearNetworking {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        if(udpListenerThread != null){
+        if (udpListenerThread != null) {
             udpListenerThread.interrupt();
         }
         udpSocket.close();
+    }
+
+    private void waitForReady() {
+        try {
+            readyLock.acquire();
+            readyLock.release();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -477,7 +609,7 @@ public final class IdearNetworking {
      * @throws IllegalStateException if not logged in or if the cleanup() method has been called
      * @throws IOException
      */
-    public IdearResponse sendImageTCP(@NonNull Bitmap image, boolean requestAudio, String ancillaryData) throws IOException {
+    private IdearResponse sendImageTCP_internal(@NonNull String image, boolean requestAudio, String ancillaryData) {
         if (ancillaryData == null) {
             ancillaryData = "";
         }
@@ -492,8 +624,9 @@ public final class IdearNetworking {
         }
         try {
             //convert image to PNG
-            ByteArrayOutputStream imageBuffer = new ByteArrayOutputStream();
-            image.compress(Bitmap.CompressFormat.PNG, 0, imageBuffer);
+            Path imagePath = Paths.get(image);
+            Log.d("CREATE", "Image file is " + Files.size(imagePath) + " bytes");
+            byte[] imageBuffer = Files.readAllBytes(imagePath);
 
             tcpLock.acquire();
 
@@ -501,31 +634,39 @@ public final class IdearNetworking {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(baos);
 
-            dos.writeByte((byte) (requestAudio?'a':'t'));
+            dos.writeByte((byte) (requestAudio ? 'a' : 't'));
             dos.write(loginToken);
             dos.writeInt(requestNum++);
             dos.writeUTF(ancillaryData);
-            dos.writeInt(imageBuffer.size());
-            dos.write(imageBuffer.toByteArray());
+            Log.d("CREATE", ""+imageBuffer.length);
+            dos.writeInt(imageBuffer.length);
+            dos.write(imageBuffer);
             dos.flush();
+            Log.d("CREATE", "dos successfully flushed.");
             tcpOut.write(baos.toByteArray());
             tcpOut.flush();
+            Log.d("CREATE", "tcpOut successfully flushed.");
 
             InputStream tcpIn = tcpSocket.getInputStream();
             DataInputStream dis = new DataInputStream(tcpIn);
             int responseType = dis.readUnsignedByte();
-            if (responseType != (requestAudio?'a':'t')){
+            if (responseType != (requestAudio ? 'a' : 't')) {
                 tcpLock.release();
                 return null;
             }
             int responseNum = dis.readInt();
-            if(responseNum != (requestNum-1)){ //have to subtract one since we already incremented requestNum
+            if (responseNum != (requestNum - 1)) { //have to subtract one since we already incremented requestNum
                 tcpLock.release();
                 return null;
             }
-            String transcribedText = dis.readUTF();
+            //Log.d("CREATE", "Response length = " + dis.readUnsignedShort());
+            int responseLength = dis.readUnsignedShort();
+            byte[] responseBytes = new byte[responseLength];
+            dis.read(responseBytes);
+            Log.d("CREATE", Arrays.toString(responseBytes));
+            String transcribedText = new String(responseBytes, Charset.forName("UTF-8"));
             IdearResponse response;
-            if(requestAudio){
+            if (requestAudio) {
                 int audioSize = dis.readInt();
                 byte[] audioBuffer = new byte[audioSize];
                 dis.readFully(audioBuffer);
@@ -537,8 +678,49 @@ public final class IdearNetworking {
             return response;
         } catch (InterruptedException e) {
             e.printStackTrace();
+        } catch (IOException ioe) {
+            //ioe.printStackTrace();
+            Log.d("CREATE", ioe.getMessage());
         }
+        tcpLock.release();
         return null;
+    }
+
+
+
+    public static void login(String email, String password) {
+        Message m = tcpThreadHandler.obtainMessage();
+        Bundle b = new Bundle();
+        b.putString("type", "login");
+        b.putString("email", email);
+        b.putString("password", password);
+        m.setAsynchronous(true);
+        m.setData(b);
+        tcpThreadHandler.sendMessage(m);
+    }
+
+    public static void createAccount(@NonNull String email, @NonNull String password) {
+        Message m = tcpThreadHandler.obtainMessage();
+        Bundle b = new Bundle();
+        b.putString("type", "register");
+        b.putString("email", email);
+        b.putString("password", password);
+        m.setAsynchronous(true);
+        m.setData(b);
+        tcpThreadHandler.sendMessage(m);
+    }
+
+    public static void sendImageTCP(@NonNull String image, boolean requestAudio, String ancillaryData) {
+        //send message to thread handler
+        Message m = tcpThreadHandler.obtainMessage();
+        Bundle b = new Bundle();
+        b.putString("type", "image");
+        b.putString("image", image);
+        b.putBoolean("audio", requestAudio);
+        b.putString("ancillary", ancillaryData);
+        m.setData(b);
+        m.setAsynchronous(true);
+        tcpThreadHandler.sendMessage(m);
     }
 
     /**
@@ -554,55 +736,8 @@ public final class IdearNetworking {
      * @throws IllegalStateException if not logged in or if the cleanup() method has been called
      * @throws IOException
      */
-    public IdearResponse sendImageTCP(@NonNull Bitmap image, boolean requestAudio) throws IOException {
-        return sendImageTCP(image, requestAudio, "");
-    }
-
-    /**
-     * Sends a new image to the server for processing using UDP. This method is not guaranteed to
-     * get a response from the server, but will likely get faster network performance than TCP.
-     * Because a response is not guaranteed, this method returns nothing and instead passes
-     * responses to the UDPResponseHandler registered with the registerUDPHandler() method.
-     *
-     * @param image        the image to be processed
-     * @param requestAudio if set to true, this method will request that the server handle the
-     *                     conversion to audio
-     * @throws IllegalStateException if not logged in or if the cleanup() method has been called
-     * @throws IOException
-     */
-    public void sendImageUDP(@NonNull Bitmap image, boolean requestAudio) throws IOException {
-        if (!loggedIn) {
-            throw new IllegalStateException("Must be logged in to send images");
-        }
-        if (tcpSocket.isClosed() || udpSocket.isClosed()) {
-            throw new IllegalStateException("Sockets have been closed, cannot send data");
-        }
-        if(udpListenerThread == null) {
-            throw new IllegalStateException("No UDP listener running, ");
-        }
-        throw new UnsupportedOperationException("Sending images over UDP is not yet implemented");
-    }
-
-    /**
-     * Resisters a request handler to take responses from UDP requests and starts a thread that
-     * listens for UDP messages from the server. Because UDP does not guarantee message delivery,
-     * there may not be a response for every request. There may also be more responses than
-     * requests, since the server may send an image cropping message in addition to a text
-     * transcription in response to a single request.
-     *
-     * @param handler
-     */
-    public void registerUDPHandler(@NonNull UDPResponseHandler handler) {
-        if (handler == null) {
-            throw new IllegalArgumentException("UDP response handler cannot be null");
-        }
-        this.udpHandler = handler;
-        if(this.udpListenerThread != null) {
-            this.udpListenerThread.interrupt();
-            while(!udpListenerThread.isInterrupted()){}
-        }
-        this.udpListenerThread = new Thread(new UDPListener(handler));
-        this.udpListenerThread.start();
+    public static void sendImageTCP(@NonNull String image, boolean requestAudio) throws IOException {
+        sendImageTCP(image, requestAudio, "");
     }
 
 }

@@ -93,20 +93,14 @@ public class ImagePreview extends AppCompatActivity {
     private CameraCaptureSession.CaptureCallback mPreviewCaptureCallback = new CameraCaptureSession.CaptureCallback() {
 
         public void process(CaptureResult capture){
-            Log.d("CREATE" ,"In Process.");
             switch(mCaptureState){
                 case STATE_PREVIEW:
-                    Log.d("CREATE" ,"Switch returned state preview.");
                     break;
                 case STATE_WAIT_LOCK:
-                    Log.d("CREATE" ,"Switch returned wait lock.");
                     mCaptureState = STATE_PREVIEW;
                     Integer autoFocusState = capture.get(CaptureResult.CONTROL_AF_STATE);
-                    Log.d("CREATE" ,"Current AF state is " + autoFocusState + ", whereas Focus Locked is " + CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED + " and the opposite is " + CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED);
-                    Log.d("CREATE" ,"Checking autoFocusState...");
                     //if(autoFocusState == CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED || autoFocusState == CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED){
                         Toast.makeText(getApplicationContext(), "Auto Focus is on!", Toast.LENGTH_SHORT).show();
-                        Log.d("CREATE" ,"Starting still capture request...");
                         startStillCaptureRequest();
                     //}
                     break;
@@ -115,7 +109,6 @@ public class ImagePreview extends AppCompatActivity {
         @Override
         public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result){
             super.onCaptureCompleted(session, request, result);
-            Log.d("CREATE" ,"Capture has been completed.");
             process(result);
         }
     };
@@ -130,23 +123,16 @@ public class ImagePreview extends AppCompatActivity {
             String imageFileName = "JPEG_" + timeStamp + ".png";
             File file = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), imageFileName);
             currentPhotoPath = file.getAbsolutePath();
-            Log.d("CREATE", currentPhotoPath);
-            Log.d("CREATE", "imagefile created..");
-            Log.d("CREATE" ,"Running imageSaver.");
             ByteBuffer byteBuffer = mImage.getPlanes()[0].getBuffer();
             byte[] bytes = new byte[byteBuffer.remaining()];
             byteBuffer.get(bytes);
-            Log.d("CREATE" ,"Number of bytes: " + bytes.length);
             FileOutputStream fOutPut = null;
             try {
-                Log.d("CREATE" ,"Made it into the try harness..");
                 fOutPut = new FileOutputStream(currentPhotoPath);
                 fOutPut.write(bytes);
-                Log.d("CREATE" ,"Made it into the try harness..");
             }catch (IOException e){
 
             } finally {
-                Log.d("CREATE" ,"Cleaning up...");
                 mImage.close();
                 if(fOutPut != null){
                     try {
@@ -154,21 +140,15 @@ public class ImagePreview extends AppCompatActivity {
                     }catch(IOException e){
 
                     }
-                    Bitmap b = BitmapFactory.decodeFile(currentPhotoPath);
                     ExportToMedia(getApplicationContext(), imageFile, ".png");
                     try {
-                        IdearNetworking.IdearResponse r = idearNetworking.sendImageTCP(b, false);
-                        String text = r.getImageText();
+                        IdearNetworking.sendImageTCP(currentPhotoPath, false);
                         Intent intent = new Intent(ImagePreview.this, Library.class);
-                        intent.putExtra("text", text);
                         intent.putExtra("address", currentPhotoPath);
                         startActivity(intent);
                     }catch (IOException e){
 
                     }
-                    //Intent intent = new Intent(ImagePreview.this, Library.class);
-                    //intent.putExtra("address", currentPhotoPath);
-                    //startActivity(intent);
                 }
             }
         }
@@ -178,7 +158,6 @@ public class ImagePreview extends AppCompatActivity {
     private TextureView.SurfaceTextureListener mTextureListener = new TextureView.SurfaceTextureListener() {
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height){
-            Log.d("CREATE" ,"We have liftoff!");
             cameraSetup(width, height);
             connectCamera();
         }
@@ -244,7 +223,6 @@ public class ImagePreview extends AppCompatActivity {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_camera);
-        Log.d("CREATE", "Image Preview is running.");
 
         mHolder = (TextureView) findViewById(R.id.textureView);
 
@@ -253,27 +231,20 @@ public class ImagePreview extends AppCompatActivity {
         library = (Button) findViewById(R.id.LibraryBtn);
 
         createImageFolder();
-
-        Log.d("CREATE" ,"Starting instantiation...");
         try {
-            idearNetworking = new IdearNetworking();
-            Log.d("CREATE" ,"Made it inside the try/catch.");
-            Log.d("CREATE" ,String.valueOf(idearNetworking));
+            IdearNetworking.initialize();
         }catch (IOException e){
-            Log.d("CREATE" ,"Error creating idearNetworking object: " + Log.getStackTraceString(e));
-        }
-        Log.d("CREATE" ,"Initializing byte array...");
 
+        }
         byte[] hash = new byte[]{0x12, 0x34, 0x56, 0x78, 0x90-256, 0xAB-256, 0xCD-256, 0xEF-256, 0x12, 0x34, 0x56, 0x78, 0x90-256, 0xAB-256, 0xCD-256, 0xEF-256, 0x12, 0x34, 0x56, 0x78, 0x90-256, 0xAB-256, 0xCD-256, 0xEF-256, 0x12, 0x34, 0x56, 0x78, 0x90-256, 0xAB-256, 0xCD-256, 0xEF-256};
         String pass = hash.toString();
-        idearNetworking.login("test@gmail.com", pass);
+        IdearNetworking.login("test@gmail.com", pass);
 
         capture.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 //Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
                 lockFocus();
-                Log.d("CREATE", "made it through ActivityResult. What happened??.");
             }
         });
 
@@ -332,8 +303,6 @@ public class ImagePreview extends AppCompatActivity {
             mimageFile = File.createTempFile(imageFileName, ".png", mPhotoFolder);
             ExportToMedia(this, mimageFile, ".png");
             currentPhotoPath = mimageFile.getAbsolutePath();
-            Log.d("CREATE", currentPhotoPath);
-            Log.d("CREATE", "imagefile created..");
         //}
         return mimageFile;
     }
@@ -423,7 +392,6 @@ public class ImagePreview extends AppCompatActivity {
 
     private void startStillCaptureRequest(){
         try {
-            Log.d("CREATE" ,"Capture Request harness entered.");
             mCaptureRequestBuilder = mCameraD.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
             mCaptureRequestBuilder.addTarget(mImageReader.getSurface());
             mCaptureRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, totalRotation);
@@ -432,7 +400,6 @@ public class ImagePreview extends AppCompatActivity {
                 public void onCaptureStarted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, long timestamp, long frameNumber) {
                     super.onCaptureStarted(session, request, timestamp, frameNumber);
                         try {
-                            Log.d("CREATE" ,"Creating image file...");
                             imageFile = createImageFile();
                         }catch (IOException e){
 
@@ -470,11 +437,9 @@ public class ImagePreview extends AppCompatActivity {
     }
 
     private void lockFocus(){
-        Log.d("CREATE" ,"LockFocus was called.");
         mCaptureState = STATE_WAIT_LOCK;
         mCaptureRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_START);
         try {
-            Log.d("CREATE" ,"Starting capture...");
             mPreviewCaptureSession.capture(mCaptureRequestBuilder.build(), mPreviewCaptureCallback, mBackgroundHandler);
         }catch (CameraAccessException e){
 

@@ -30,7 +30,8 @@ public class Library extends AppCompatActivity {
 
     private ListView listView;
     private TextToSpeech textToSpeech;
-    private String readME;
+    private String text;
+    static Library instance;
 
     public void init_tts(){
         textToSpeech = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
@@ -74,7 +75,7 @@ public class Library extends AppCompatActivity {
             String address = intent.getStringExtra("address");
             Bitmap image = BitmapFactory.decodeFile(address);
             libraryView.setImageBitmap(image);
-            readME = intent.getStringExtra("text");
+            //text = intent.getStringExtra("text");
         }
 
         capture.setOnClickListener(new View.OnClickListener() {
@@ -111,11 +112,16 @@ public class Library extends AppCompatActivity {
                 }
                 //readME = "Test Test Test";
                 textToSpeech.setSpeechRate((float)voiceSpeed);
-                Toast.makeText(getApplicationContext(), readME, Toast.LENGTH_SHORT).show();
-                int speechStatus = textToSpeech.speak(readME, TextToSpeech.QUEUE_FLUSH, null);
+                Toast.makeText(getApplicationContext(), text, Toast.LENGTH_SHORT).show();
+                int speechStatus = textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null);
                 if (speechStatus == TextToSpeech.ERROR) {
                 }
             }
         });
+        instance = this;
+    }
+
+    public int readAloud(String text) {
+        return textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, String.valueOf(Math.random()));
     }
 }
