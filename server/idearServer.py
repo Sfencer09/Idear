@@ -1,5 +1,6 @@
 import pytesseract
-#import cv2
+import cv2
+import numpy as np
 #from numba import jit
 import time
 import socketserver
@@ -18,10 +19,10 @@ TCP_port = 30501
 UDP_port = 30501
 server_address = "192.168.0.6"
 image_temp_dir = "B:\\" #underlying storage medium should be as fast as possible, I use a RAM disk for testing
-try:
-    database = mysql.connector.connect(host="127.0.0.1", user="Idear", passwd="ReeceElliotTrey", database="Idear")
-except:
-    print("unable to connect to database")
+#try:
+#    database = mysql.connector.connect(host="127.0.0.1", user="Idear", passwd="ReeceElliotTrey", database="Idear")
+#except:
+#    print("unable to connect to database")
 print = partial(print, flush=True)
 
 #@jit(target ="CPU") 
@@ -85,6 +86,15 @@ def validateToken(token):
     else:
         return False
 
+def preprocessImage(imagepath):
+    image = cv2.imread(imagepath)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    image = cv2.medianBlur(image, 3)
+    image = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+    newimagepath = imagepath[:-4]+"-processed.png"
+    cv2.imwrite(newimagepath, image)
+    return newimagepath
+
 class idearTCPHandler(socketserver.StreamRequestHandler):
     def handle(self):
         while True:
@@ -92,7 +102,11 @@ class idearTCPHandler(socketserver.StreamRequestHandler):
                 cursor = database.cursor()
             except:
                 pass
-            requestType = self.request.recv(1)[0]
+            try:
+                requestType = self.request.recv(1)[0]
+            except IndexError, ConnectionResetError:
+                print('Client closed connection')
+                break
             print("received connection of type ", requestType)
             if(requestType == 108): #'l', login part 1
                 #check if email is in user table, if so get salt and send to client
@@ -103,12 +117,15 @@ class idearTCPHandler(socketserver.StreamRequestHandler):
                 print("got email address \"", email, "\"")
                 try:
                     salt = cursor.callproc("getSalt", [email])[0][0]
+                    print('Got salt from database')
                 except:
                     if email == "test@gmail.com":
                         salt = "0000000000000000"
+                        print('Got test email, using default salt')
                     else:
                         salt=""
-                print("salt is \"", salt, "\"")
+                        print('No salt found')
+                print("salt is \"", salt, "\"", sep='')
                 if(salt == ""):
                     self.request.sendall("lf".encode("utf-8"))
                     return
@@ -139,6 +156,7 @@ class idearTCPHandler(socketserver.StreamRequestHandler):
                 print("user id=", userID)
                 if(userID == -1):
                     self.request.sendall("Lf".encode("utf-8"))
+                    print('Login failed')
                 else:
                     #generate client token
                     tokenLock.acquire()
@@ -149,6 +167,7 @@ class idearTCPHandler(socketserver.StreamRequestHandler):
                     clientTokens[token] = (userID, time.time() + TOKEN_DURATION)
                     tokenLock.release()
                     self.request.sendall("Ls".encode("utf-8")+token)
+                    print('Login succeeded')
             elif(requestType == 110): #'n', new user part 1
                 #check if email is in user table, if not generate salt and send to client
                 emailLen = struct.unpack("!H", self.request.recv(2))[0]
@@ -191,7 +210,7 @@ class idearTCPHandler(socketserver.StreamRequestHandler):
                 print('image size=', imageSize)
                 imageContents = self.request.recv(imageSize)
                 while len(imageContents) < imageSize:
-                    print(len(imageContents))
+                    #print(len(imageContents))
                     imageContents += self.request.recv(imageSize - len(imageContents))
                 filename = image_temp_dir + token.hex() + '-' + str(requestNum) + '.png'
                 print('saving image to ', filename)
@@ -199,12 +218,8 @@ class idearTCPHandler(socketserver.StreamRequestHandler):
                 imageFile.write(imageContents)
                 imageFile.close()
                 print('file written')
-                #image written to file, apply preprocessing
-                #convertedImage = image
-                #binarize
-
-                #give image to Tesseract
-                blocks = imageToBlocks(filename)  #This is the expensive line
+                #preprocess image and give result to Tesseract
+                blocks = imageToBlocks(preprocessImage(filename))  #This is the expensive line
                 text = joinBlocks(blocks)
                 print('completed processing, got \"', text, '\"')
                 #send response back to client
