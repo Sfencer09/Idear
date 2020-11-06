@@ -104,7 +104,7 @@ class idearTCPHandler(socketserver.StreamRequestHandler):
                 pass
             try:
                 requestType = self.request.recv(1)[0]
-            except IndexError, ConnectionResetError:
+            except (IndexError, ConnectionResetError):
                 print('Client closed connection')
                 break
             print("received connection of type ", requestType)
