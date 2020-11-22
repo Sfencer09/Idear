@@ -26,7 +26,7 @@ image_temp_dir = "B:\\" #underlying storage medium should be as fast as possible
 print = partial(print, flush=True)
 
 #@jit(target ="CPU") 
-def imageToBlocks(image):
+def imageToBlocks(image): #extracts text from the given image using Tesseract
     startTime = time.time()
     #convert to text using tesseract
     rawData = pytesseract.image_to_data(image)
@@ -65,7 +65,8 @@ def blocksToString(blocks): #converts blocks to debug string, similar to origina
         output += "%d %d %d %d %d %d %d %d %d %d %s\n" % block
     return output
 
-def cleanupTokens():
+
+def cleanupTokens(): #remove all expired tokens from the token dictionary
     print("starting token cleanup")
     for token in clientTokens:
         if(clientTokens[token][1] <= time.time()):
@@ -74,7 +75,7 @@ def cleanupTokens():
             tokenLock.release()
     print("token cleanup done")
 
-def validateToken(token):
+def validateToken(token): #tests whether the given token is valid and not expired
     if token in clientTokens:
         if(clientTokens[token][1] <= time.time()):
             tokenLock.acquire()
@@ -86,7 +87,7 @@ def validateToken(token):
     else:
         return False
 
-def preprocessImage(imagepath):
+def preprocessImage(imagepath): #apply filters to image to improve Tesseract's accuracy
     image = cv2.imread(imagepath)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     image = cv2.medianBlur(image, 3)
@@ -96,8 +97,8 @@ def preprocessImage(imagepath):
     return newimagepath
 
 class idearTCPHandler(socketserver.StreamRequestHandler):
-    def handle(self):
-        while True:
+    def handle(self): 
+        while True: #keep reading from socket until client closes connection
             try:
                 cursor = database.cursor()
             except:

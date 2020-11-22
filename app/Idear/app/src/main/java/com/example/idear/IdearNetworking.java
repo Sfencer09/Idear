@@ -376,7 +376,7 @@ public final class IdearNetworking extends Thread {
             Log.d("CREATE", "Starting Login.");
             //send email address
             dos.writeByte((byte) 'l'); //this is stage 1 of logging in
-            dos.writeUTF(email); //this also writes the string length as a short
+            dos.writeUTF(email); //this also writes the string length as a 2-byte short
             dos.flush();
             tcpOut.write(baos.toByteArray());
             tcpOut.flush();
@@ -430,6 +430,7 @@ public final class IdearNetworking extends Thread {
             responseType = dis.readUnsignedByte();
             Log.d("CREATE", "ResponseType = " + responseType);
             if (responseType != 'L') {
+                //bad response from server, aborting
                 tcpLock.release();
                 return 20;
             }
@@ -586,6 +587,10 @@ public final class IdearNetworking extends Thread {
         udpSocket.close();
     }
 
+    /**
+     * Utility method to allow the main thread to block until this class is finished initializing,
+     * without causing a NetworkOnMainThreadException.
+     */
     private void waitForReady() {
         try {
             readyLock.acquire();
@@ -633,7 +638,7 @@ public final class IdearNetworking extends Thread {
             OutputStream tcpOut = tcpSocket.getOutputStream();
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(baos);
-
+            //Assemble message to be sent to server
             dos.writeByte((byte) (requestAudio ? 'a' : 't'));
             dos.write(loginToken);
             dos.writeInt(requestNum++);
@@ -643,10 +648,12 @@ public final class IdearNetworking extends Thread {
             dos.write(imageBuffer);
             dos.flush();
             Log.d("CREATE", "dos successfully flushed.");
+            //Send message to server over TCP socket
             tcpOut.write(baos.toByteArray());
             tcpOut.flush();
             Log.d("CREATE", "tcpOut successfully flushed.");
 
+            //Read response from server
             InputStream tcpIn = tcpSocket.getInputStream();
             DataInputStream dis = new DataInputStream(tcpIn);
             int responseType = dis.readUnsignedByte();
@@ -665,6 +672,7 @@ public final class IdearNetworking extends Thread {
             dis.read(responseBytes);
             Log.d("CREATE", Arrays.toString(responseBytes));
             String transcribedText = new String(responseBytes, Charset.forName("UTF-8"));
+            //Build IdearResponse object to hold result returned by server
             IdearResponse response;
             if (requestAudio) {
                 int audioSize = dis.readInt();
@@ -687,7 +695,26 @@ public final class IdearNetworking extends Thread {
     }
 
 
-
+    /**
+     * Logs into the Idear server with the given email address and password. If successful,
+     * this method returns 0. If unsuccessful, one of the following values will be returned:
+     * <ul>
+     * <li>1 - indicates that the given email address was not found in the user database</li>
+     * <li>2 - indicates that the password was incorrect for the given email address</li>
+     * <li>5 - indicates that an IO exception occurred, most likely the server is offline or
+     * unreachable</li>
+     * <li>10 - indicates that a userless login attempt failed</li>
+     * <li>20 - indicates that the method received a malformed response from the server</li>
+     * <li>-1 - indicates that an unknown exception occurred, likely due to a bug</li>
+     * </ul>
+     * Development purposes only: if both email and password are null, and userlessLogin is true,
+     * then this method attempts to perform a login without a user account. If userlessLogin is
+     * false, or if only one argument is null, this method will throw an IllegalArgumentException.
+     *
+     * @param email
+     * @param password
+     * @return 0 if successful, or one of the above values if unsuccessful
+     */
     public static void login(String email, String password) {
         Message m = tcpThreadHandler.obtainMessage();
         Bundle b = new Bundle();
@@ -699,6 +726,22 @@ public final class IdearNetworking extends Thread {
         tcpThreadHandler.sendMessage(m);
     }
 
+    /**
+     * Registers a new account the Idear server with the given email address and password. If
+     * successful, this method returns 0. If unsuccessful, one of the following values will be
+     * returned:
+     * <ul>
+     * <li>1 - indicates that the given email address is already registered in the user database</li>
+     * <li>5 - indicates that an IO exception occurred, most likely the server is offline or
+     * unreachable</li>
+     * <li>20 - indicates that the method received a malformed response from the server</li>
+     * <li>-1 - indicates that an unknown exception occurred, likely due to a bug</li>
+     * </ul>
+     *
+     * @param email
+     * @param password
+     * @return 0 if successful, or one of the above values if unsuccessful
+     */
     public static void createAccount(@NonNull String email, @NonNull String password) {
         Message m = tcpThreadHandler.obtainMessage();
         Bundle b = new Bundle();
@@ -710,6 +753,17 @@ public final class IdearNetworking extends Thread {
         tcpThreadHandler.sendMessage(m);
     }
 
+    /**
+     * Sends a new image to the server for processing using TCP. This method returns immediately,
+     * it does not wait for a response.
+     *
+     * @param image        the path to the image to be processed
+     * @param requestAudio if set to true, this method will request that the server handle the
+     *                     conversion to audio
+     * @param ancillaryData String containing extra information to help improve processing accuracy
+     * @throws IllegalStateException if not logged in or if the cleanup() method has been called
+     * @throws IOException
+     */
     public static void sendImageTCP(@NonNull String image, boolean requestAudio, String ancillaryData) {
         //send message to thread handler
         Message m = tcpThreadHandler.obtainMessage();
@@ -728,11 +782,9 @@ public final class IdearNetworking extends Thread {
      * method is simply a shorthand for the three-argument sendImageTCP with ancillary data set
      * to an empty string.
      *
-     * @param image        the image to be processed
+     * @param image        the path to the image to be processed
      * @param requestAudio if set to true, this method will request that the server handle the
      *                     conversion to audio
-     * @return an IdearResponse instance containing the text and, if requestAudio was set to true,
-     * audio returned by the Idear server
      * @throws IllegalStateException if not logged in or if the cleanup() method has been called
      * @throws IOException
      */
