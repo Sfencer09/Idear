@@ -19,6 +19,8 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Looper;
+import android.os.Message;
 import android.provider.MediaStore;
 import android.util.Size;
 import android.util.SparseIntArray;
@@ -51,33 +53,44 @@ import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
 
+    //Instantiate the buttons and textfields
     private Button login;
 
     private EditText emailText;
     private EditText passwordText;
     private EditText passwordText1;
 
+    //All the strings that are processed by the textfield
     private String email;
     private String password;
     private String password1;
 
+    //When the app is started...
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        //Set the current layout to the login screen
         setContentView(R.layout.activity_main);
 
+        //Assign all the text fields
         emailText = (EditText) findViewById(R.id.editTextEmail);
         passwordText = (EditText) findViewById(R.id.editTextPassword);
         passwordText1 = (EditText) findViewById(R.id.editTextPassword2);
 
+        //Assign the button
         login = (Button) findViewById(R.id.submitButton);
 
+        //Set up a listener for the button
         login.setOnClickListener(new View.OnClickListener() {
+            //On button press...
             @Override
             public void onClick(View v) {
+                //Get the text from all the textfields
                 email = emailText.getText().toString();
                 password = passwordText.getText().toString();
                 password1 = passwordText1.getText().toString();
 
+                //A bunch of rudimentary tests of valid password and email checks.
                 if(email.isEmpty() && password.isEmpty()){
                     Toast.makeText(getApplicationContext(), "Please enter your account information!", Toast.LENGTH_SHORT).show();
                 }
@@ -95,7 +108,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 else if(!(email.isEmpty()&&password.isEmpty()))
                 {
-                    //Code to register the login token here!
+                    //If all is okay, move forward
                     Log.i("MyApp1", "1");
                     Intent load = new Intent(MainActivity.this, ImagePreview.class);
                     Log.i("MyApp2", "2");
@@ -104,5 +117,21 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+        /*
+        Looper.prepare();
+        Looper l = Looper.getMainLooper();
+
+        Handler h = Handler.createAsync(l, new Handler.Callback() {
+            @Override
+            public boolean handleMessage(@NonNull Message msg) {
+                Bundle b = msg.getData();
+                String type = b.getString("type");
+                if(type.equals("loginStatus")){
+
+                    return true;
+                }
+            }
+        })
+        */
     }
 }

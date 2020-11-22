@@ -15,32 +15,49 @@ public class Settings {
     private double speed;
     private int voiceOption;
     private String text;
+    private long t;
     //private TextToSpeech textToSpeech;
 
     private Settings() {
         speed = 1;
         voiceOption = 0;
-        //init_tts();
+        text = "";
     }
 
     public static Settings getInstance() {
         return instance;
     }
+
     public void setText(String s){
         text = s;
+        Log.i("Network: ", s);
+        Log.i("Network: ", text);
+        t = System.currentTimeMillis();
     }
+
     public String getText(){
         return text;
     }
-    public double getSpeed() {
-        return speed;
+
+    public double getSpeed() { return speed; }
+
+    public int getVoiceOption() {
+        return voiceOption;
     }
+
+    public void setVoiceOption(int n) {
+        voiceOption = n;
+    }
+
+    public long getTime() { return t; }
     public int voiceOption() {
         return voiceOption;
     }
+
     public void setSpeed(double sp) {
-        Log.i("Settings", "Speed: " + speed);
+        Log.i("Settings", "SpeedBefore: " + speed);
         speed = sp;
+        Log.i("Settings", "SpeedAfter: " + speed);
         // textToSpeech.setSpeechRate((float)speed);
 
 

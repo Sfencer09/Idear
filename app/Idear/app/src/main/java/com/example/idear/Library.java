@@ -30,8 +30,7 @@ public class Library extends AppCompatActivity {
 
     private ListView listView;
     private TextToSpeech textToSpeech;
-    private String text;
-    static Library instance;
+    private long time;
 
     public void init_tts(){
         textToSpeech = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
@@ -63,7 +62,7 @@ public class Library extends AppCompatActivity {
         Log.i("Lib", "Before");
         Button capture = findViewById(R.id.HomeBTN);
         Button settings = findViewById(R.id.SettingsBTN);
-        Button test = findViewById(R.id.LibTestBTN);
+        Button test = findViewById(R.id.LibPlayBTN);
 
         init_tts();
 
@@ -72,12 +71,13 @@ public class Library extends AppCompatActivity {
         Intent intent = getIntent();
         Bundle extras = intent.getExtras();
         if(extras != null){
+            time = intent.getLongExtra("time", 0);
             String address = intent.getStringExtra("address");
             Bitmap image = BitmapFactory.decodeFile(address);
             libraryView.setImageBitmap(image);
             //text = intent.getStringExtra("text");
         }
-
+        //Transfers user to the Camera Activity/Page
         capture.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -85,7 +85,7 @@ public class Library extends AppCompatActivity {
                 startActivity(load);
             }
         });
-
+        //Transfers user to the Settings Activity/Page
         settings.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -94,23 +94,30 @@ public class Library extends AppCompatActivity {
             }
         });
 
-
+        //Reads what is coming from the server along along with with the global settings such as voice and speed implemented
         test.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                int voiceOption = (Settings.getInstance().voiceOption());
+                //voiceOption brings in the chosen voice from settings
+                int voiceOption = (Settings.getInstance().getVoiceOption());
+                //voiceSpeed brings in the chosen speed from settings
                 double voiceSpeed = (Settings.getInstance().getSpeed());
-                if (voiceOption == 0) {
-                    Voice v1 = new Voice("en-us-x-sfg#male_1-local", new Locale("en", "US"), 400, 200, true, null);
+                //text is the string that is brought in from the network transferred into setting and then brought in here to read
+                String text = (Settings.getInstance().getText());
+                //passedTime is how to calculate latency between phone to server to phon
+                double passedTime = ((Settings.getInstance().getTime()) - time) / 1000.0;
+                Log.d("CREATE", "Processing took " + passedTime + " seconds.");
+                //Toast.makeText(getApplicationContext(), "Processing time: " + passedTime + " seconds", Toast.LENGTH_LONG).show();
+                if (voiceOption == 0) {//English, United States, Female
+                    Voice v1 = new Voice("en-us-x-sfg-local", new Locale("en", "US"), 400, 200, true, null);
                     textToSpeech.setVoice(v1);
                     //Toast.makeText(getApplicationContext(), "Radio ID: " + , Toast.LENGTH_SHORT).show();
-                } else if (voiceOption == 1) {
-                    Voice v1 = new Voice("en-us-x-sfg#female_1-local", new Locale("en", "US"), 400, 200, true, null);
+                } else if (voiceOption == 1) {//English, India, Female
+                    Voice v1 = new Voice("en-in-x-cxx-local", new Locale("en", "US"), 400, 200, true, null);
                     textToSpeech.setVoice(v1);
-                } else if (voiceOption == 2) { //English- Great Britain
+                } else if (voiceOption == 2) { //English, Great Britain, Male
                     Voice v1 = new Voice("en-gb-x-gbd-local", new Locale("en", "gb"), 400, 200, true, null);
                     textToSpeech.setVoice(v1);
                 }
-                //readME = "Test Test Test";
                 textToSpeech.setSpeechRate((float)voiceSpeed);
                 Toast.makeText(getApplicationContext(), text, Toast.LENGTH_SHORT).show();
                 int speechStatus = textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null);
@@ -118,10 +125,7 @@ public class Library extends AppCompatActivity {
                 }
             }
         });
-        instance = this;
-    }
 
-    public int readAloud(String text) {
-        return textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, String.valueOf(Math.random()));
+
     }
 }

@@ -292,14 +292,14 @@ public final class IdearNetworking extends Thread {
                         if (response == null) break;
                         if (response.getImageText().isEmpty()) break;
                         Log.d("CREATE" ,"Response received = " + response.imageText);
-                        //send text to TTS handler
-                        Library.instance.readAloud(response.getImageText());
-                        /*Message ttsMsg = new Message();
+                        Settings.getInstance().setText(response.imageText);
+                        Message ttsMsg = new Message();
                         Bundle imageBundle = new Bundle();
                         b.putString("type", "response");
                         b.putSerializable("response", response);
                         ttsMsg.setAsynchronous(true);
-                        ttsMsg.setData(b);*/
+                        ttsMsg.setData(b);
+                        //send message to TTS handler
                         break;
                     case "login":
                         int loginStatus = login_internal(b.getString("email"), b.getString("password"));

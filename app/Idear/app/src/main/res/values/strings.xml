@@ -21,6 +21,8 @@
     <string name="UpBTN">+</string>
     <string name="button">Button</string>
     <string name="sample_1">"Date\n""Image_Size\n"</string>
+    <string name="voice1">Voice1</string>
+    <string name="voice3">Voice3</string>
     <string-array name="metadata">
         <item>"9/16/2020"
         "16KB"</item>

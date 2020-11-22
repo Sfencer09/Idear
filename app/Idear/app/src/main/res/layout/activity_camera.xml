@@ -28,10 +28,9 @@
 
     <TextureView
         android:id="@+id/textureView"
-        android:layout_width="400dp"
-        android:layout_height="500dp"
+        android:layout_width="333dp"
+        android:layout_height="513dp"
         android:src="@mipmap/ic_launcher"
-        app:layout_constraintBottom_toTopOf="@+id/CaptureBtn"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/HomeTV" />

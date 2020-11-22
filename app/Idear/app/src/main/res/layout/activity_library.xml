@@ -7,6 +7,7 @@
     android:layout_height="match_parent"
     tools:context=".Library">
 
+    <!--This is the TextView label for the page the page.-->
     <TextView
         android:id="@+id/LibraryTV"
         android:layout_width="wrap_content"
@@ -17,7 +18,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-
+    <!--This button loads the ImagePreview (camera page).-->
     <Button
         android:id="@+id/HomeBTN"
         android:layout_width="120dp"
@@ -26,6 +27,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
+    <!--This button loads the SettingsAct (settings page).-->
     <Button
         android:id="@+id/SettingsBTN"
         android:layout_width="120dp"
@@ -34,23 +36,29 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <!--This button plays the text that is received from the server.-->
     <Button
-        android:id="@+id/LibTestBTN"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Test"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:id="@+id/LibPlayBTN"
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:background="@drawable/play"
+        android:rotationY="180"
+        app:layout_constraintBottom_toBottomOf="@+id/HomeBTN"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.498"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/LibraryTV"
-        app:layout_constraintVertical_bias="0.753" />
+        app:layout_constraintStart_toStartOf="@+id/HomeBTN"
+        app:layout_constraintTop_toTopOf="@+id/SettingsBTN"
+        app:layout_constraintVertical_bias="0.583" />
 
+    <!--This image view loads in the the image that is saved on to the phone.-->
+    <!--The rotation is set to 90 degrees on the Z axis to for some reason load the image right side up.-->
     <ImageView
         android:id="@+id/libraryView"
         android:layout_width="410dp"
         android:layout_height="343dp"
-        android:layout_marginTop="50dp"
+        android:rotation="90"
+        app:layout_constraintBottom_toTopOf="@+id/SettingsBTN"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/LibraryTV"
         app:srcCompat="@drawable/ic_launcher_background" />
