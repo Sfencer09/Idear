@@ -3,10 +3,12 @@ import cv2
 import numpy as np
 #from numba import jit
 import time
+from datetime import datetime
 import socketserver
 import struct
 import mysql.connector
 import threading
+import _thread
 import os
 from functools import partial
 
@@ -20,10 +22,13 @@ UDP_port = 30501
 server_address = "192.168.0.6"
 image_temp_dir = "B:\\" #underlying storage medium should be as fast as possible, I use a RAM disk for testing
 #try:
-#    database = mysql.connector.connect(host="127.0.0.1", user="Idear", passwd="ReeceElliotTrey", database="Idear")
+#    database = mysql.connector.connect(host="localhost", user="Idear", passwd="ReeceElliotTrey", database="Idear")
 #except:
-#    print("unable to connect to database")
-print = partial(print, flush=True)
+#    printWithTime("unable to connect to database")
+#print = partial(print, "[%s]" % time.ctime(), flush=True)
+
+def printWithTime(*args):
+    print("[%s]: " % datetime.utcnow().isoformat(sep=' ', timespec='milliseconds'), *args)
 
 #@jit(target ="CPU") 
 def imageToBlocks(image): #extracts text from the given image using Tesseract
@@ -65,15 +70,20 @@ def blocksToString(blocks): #converts blocks to debug string, similar to origina
         output += "%d %d %d %d %d %d %d %d %d %d %s\n" % block
     return output
 
+<<<<<<< Updated upstream
 
 def cleanupTokens(): #remove all expired tokens from the token dictionary
     print("starting token cleanup")
+=======
+def cleanupTokens():
+    printWithTime("starting token cleanup")
+>>>>>>> Stashed changes
     for token in clientTokens:
         if(clientTokens[token][1] <= time.time()):
             tokenLock.acquire()
             del clientTokens[token]
             tokenLock.release()
-    print("token cleanup done")
+    printWithTime("token cleanup done")
 
 def validateToken(token): #tests whether the given token is valid and not expired
     if token in clientTokens:
@@ -87,14 +97,33 @@ def validateToken(token): #tests whether the given token is valid and not expire
     else:
         return False
 
+<<<<<<< Updated upstream
 def preprocessImage(imagepath): #apply filters to image to improve Tesseract's accuracy
+=======
+def preprocessImage(imagepath):
+    startTime = time.time()
+    #read image
+>>>>>>> Stashed changes
     image = cv2.imread(imagepath)
+    #convert to grayscale
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    #cv2.imwrite(imagepath[:-4]+"-processed-1.png", image)
+    #apply median blur to 'smear' image grain, helps reduce noise after thresholding
     image = cv2.medianBlur(image, 3)
+    #cv2.imwrite(imagepath[:-4]+"-processed-2.png", image)
+    #canny edge here?
+    #binarize the image with thresholding
     image = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
-    newimagepath = imagepath[:-4]+"-processed.png"
+    #remove excess black around border
+    #deskew here
+    #save final processed image and return path to it
+    newimagepath = imagepath[:-4]+"-processed-final.png"
     cv2.imwrite(newimagepath, image)
+    printWithTime("image preprocessing took %f seconds" % (time.time() - startTime))
     return newimagepath
+
+def shutdownServer(server):
+    server.shutdown()
 
 class idearTCPHandler(socketserver.StreamRequestHandler):
     def handle(self): 
@@ -106,36 +135,40 @@ class idearTCPHandler(socketserver.StreamRequestHandler):
             try:
                 requestType = self.request.recv(1)[0]
             except (IndexError, ConnectionResetError):
-                print('Client closed connection')
+                printWithTime('Client closed connection')
                 break
-            print("received connection of type ", requestType)
+            except KeyboardInterrupt:
+                printWithTime('Shutting down server')
+                _thread.start_new_thread(shutdownServer, (tcpServer,))
+            printWithTime("received connection of type ", requestType)
             if(requestType == 108): #'l', login part 1
                 #check if email is in user table, if so get salt and send to client
                 emailLen = struct.unpack("!H", self.request.recv(2))[0]
-                print("email length is ", emailLen)
+                printWithTime("email length is ", emailLen)
                 email = self.request.recv(emailLen).decode("utf-8")
-                print(type(email))
-                print("got email address \"", email, "\"")
+                printWithTime(type(email))
+                printWithTime("got email address \"", email, "\"")
+                #attempt to get salt from database, if database fails revert to testing mode
                 try:
                     salt = cursor.callproc("getSalt", [email])[0][0]
-                    print('Got salt from database')
+                    printWithTime('Got salt from database')
                 except:
                     if email == "test@gmail.com":
                         salt = "0000000000000000"
-                        print('Got test email, using default salt')
+                        printWithTime('Got test email, using default salt')
                     else:
                         salt=""
-                        print('No salt found')
-                print("salt is \"", salt, "\"", sep='')
+                        printWithTime('No salt found')
+                printWithTime("salt is \"", salt, "\"", sep='')
                 if(salt == ""):
                     self.request.sendall("lf".encode("utf-8"))
                     return
                 else:
                     self.request.sendall(("ls" + salt).encode("utf-8"))
                 #login part 2
-                print("starting part 2 of login")
+                printWithTime("starting part 2 of login")
                 responseType = self.request.recv(1)[0]
-                print("second response type is ", responseType)
+                printWithTime("second response type is ", responseType)
                 if(responseType != 76): #'L'
                     #invalid message
                     pass
@@ -144,9 +177,9 @@ class idearTCPHandler(socketserver.StreamRequestHandler):
                 if(email2 != email):
                     #did not receive same email as first message
                     pass
-                print("second email matches")
+                printWithTime("second email matches")
                 passHash = self.request.recv(32)
-                print("password hash ", passHash)
+                printWithTime("password hash ", passHash)
                 try:
                     userID = cursor.callproc("verifyHash", [email, passHash])[0][0]
                 except:
@@ -154,10 +187,10 @@ class idearTCPHandler(socketserver.StreamRequestHandler):
                         userID = 1
                     else:
                         userID = -1
-                print("user id=", userID)
+                printWithTime("user id=", userID)
                 if(userID == -1):
                     self.request.sendall("Lf".encode("utf-8"))
-                    print('Login failed')
+                    printWithTime('Login failed')
                 else:
                     #generate client token
                     tokenLock.acquire()
@@ -168,7 +201,7 @@ class idearTCPHandler(socketserver.StreamRequestHandler):
                     clientTokens[token] = (userID, time.time() + TOKEN_DURATION)
                     tokenLock.release()
                     self.request.sendall("Ls".encode("utf-8")+token)
-                    print('Login succeeded')
+                    printWithTime('Login succeeded')
             elif(requestType == 110): #'n', new user part 1
                 #check if email is in user table, if not generate salt and send to client
                 emailLen = struct.unpack("!H", self.request.recv(2))[0]
@@ -195,34 +228,34 @@ class idearTCPHandler(socketserver.StreamRequestHandler):
                 
                 
             elif(requestType == 116): #'t', image conversion to text
-                print('got image')
+                printWithTime('got image')
                 token = self.request.recv(32)
-                print('retrieved token')
+                printWithTime('retrieved token')
                 if not validateToken(token):
                     #token is invalid, send error code for expired token
                     pass
                 userID = clientTokens[token][0]
                 requestNum = struct.unpack("!I", self.request.recv(4))[0]
-                print('request number=', requestNum)
+                printWithTime('request number=', requestNum)
                 ancSize = struct.unpack("!H", self.request.recv(2))[0]
                 ancillary = self.request.recv(ancSize).decode("utf-8")
-                print('ancillary data: \"', ancillary, '\"', sep="")
+                printWithTime('ancillary data: \"', ancillary, '\"', sep="")
                 imageSize = struct.unpack("!I", self.request.recv(4))[0]
-                print('image size=', imageSize)
+                printWithTime('image size=', imageSize)
                 imageContents = self.request.recv(imageSize)
                 while len(imageContents) < imageSize:
-                    #print(len(imageContents))
+                    #printWithTime(len(imageContents))
                     imageContents += self.request.recv(imageSize - len(imageContents))
                 filename = image_temp_dir + token.hex() + '-' + str(requestNum) + '.png'
-                print('saving image to ', filename)
+                printWithTime('saving image to ', filename)
                 imageFile = open(filename, "wb+")
                 imageFile.write(imageContents)
                 imageFile.close()
-                print('file written')
+                printWithTime('file written')
                 #preprocess image and give result to Tesseract
                 blocks = imageToBlocks(preprocessImage(filename))  #This is the expensive line
                 text = joinBlocks(blocks)
-                print('completed processing, got \"', text, '\"')
+                printWithTime('completed processing, got \"', text, '\"')
                 #send response back to client
                 textBytes = text.encode("utf-8")
                 response = struct.pack("!cIH", b't', requestNum, len(textBytes)) + textBytes
@@ -274,19 +307,20 @@ def test():
 
 
 def main():
+    global tcpServer
     tcpServer = idearTCPServer((server_address, TCP_port), idearTCPHandler)
     #tcpServer.serve_forever()
     tcpThread = threading.Thread(target=tcpServer.serve_forever)
-    print("TCP thread created")
+    printWithTime("TCP thread created")
     tcpThread.start()
-    print("TCP thread started")
+    printWithTime("TCP thread started")
     #udpServer = iderUDPServer((server_address, UDP_port), idearUDPHandler)
     #udpThread = threading.Thread(target=udpServer.server_forever())
     #udpThread.start()
     tokenCleanupTimer = threading.Timer(TOKEN_CLEANUP_INTERVAL, cleanupTokens)
-    print("token cleanup timer created")
+    printWithTime("token cleanup timer created")
     tokenCleanupTimer.start()
-    print("token cleanup timer started, joining to TCP thread")
+    printWithTime("token cleanup timer started, joining to TCP thread")
     #udpThread.join()
     tcpThread.join()
     
