@@ -28,7 +28,7 @@ image_temp_dir = "B:\\" #underlying storage medium should be as fast as possible
 #print = partial(print, "[%s]" % time.ctime(), flush=True)
 
 def printWithTime(*args):
-    print("[%s]: " % datetime.utcnow().isoformat(sep=' ', timespec='milliseconds'), *args)
+    print("(%s): " % datetime.utcnow().isoformat(sep=' ', timespec='milliseconds'), *args)
 
 #@jit(target ="CPU") 
 def imageToBlocks(image): #extracts text from the given image using Tesseract
