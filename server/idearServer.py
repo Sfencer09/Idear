@@ -21,14 +21,15 @@ TCP_port = 30501
 UDP_port = 30501
 server_address = "192.168.0.6"
 image_temp_dir = "B:\\" #underlying storage medium should be as fast as possible, I use a RAM disk for testing
-#try:
-#    database = mysql.connector.connect(host="localhost", user="Idear", passwd="ReeceElliotTrey", database="Idear")
-#except:
-#    printWithTime("unable to connect to database")
 #print = partial(print, "[%s]" % time.ctime(), flush=True)
 
 def printWithTime(*args):
     print("(%s): " % datetime.utcnow().isoformat(sep=' ', timespec='milliseconds'), *args)
+
+try:
+   database = mysql.connector.connect(host="localhost", user="Idear", passwd="ReeceElliotTrey", database="Idear")
+except:
+   printWithTime("unable to connect to database")
 
 #@jit(target ="CPU") 
 def imageToBlocks(image): #extracts text from the given image using Tesseract
@@ -70,14 +71,9 @@ def blocksToString(blocks): #converts blocks to debug string, similar to origina
         output += "%d %d %d %d %d %d %d %d %d %d %s\n" % block
     return output
 
-<<<<<<< Updated upstream
 
 def cleanupTokens(): #remove all expired tokens from the token dictionary
-    print("starting token cleanup")
-=======
-def cleanupTokens():
     printWithTime("starting token cleanup")
->>>>>>> Stashed changes
     for token in clientTokens:
         if(clientTokens[token][1] <= time.time()):
             tokenLock.acquire()
@@ -97,13 +93,9 @@ def validateToken(token): #tests whether the given token is valid and not expire
     else:
         return False
 
-<<<<<<< Updated upstream
 def preprocessImage(imagepath): #apply filters to image to improve Tesseract's accuracy
-=======
-def preprocessImage(imagepath):
     startTime = time.time()
     #read image
->>>>>>> Stashed changes
     image = cv2.imread(imagepath)
     #convert to grayscale
     image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
